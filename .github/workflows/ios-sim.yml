@@ -1,0 +1,16 @@
+name: Prueba en iOS (WebKit)
+on: [push, workflow_dispatch]
+jobs:
+  webkit-iphone:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm ci
+      - run: npx playwright install webkit
+      - name: Iniciar simulador y probar perfil iPhone
+        run: |
+          node server.js & sleep 3
+          curl -sf -X POST localhost:3000/api/webkit -H 'Content-Type: application/json' \
+            -d '{"url":"https://example.com","device":"iPhone 15"}' | head -c 200

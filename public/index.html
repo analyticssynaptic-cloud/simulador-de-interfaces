@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simulador iOS para APIs</title>
+<style>
+  :root { --bg:#f2f4f7; --card:#fff; --text:#1b1f24; --muted:#667085; --line:#e4e7ec; --accent:#0a84ff; --ok:#1a7f37; --bad:#c62828; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#0f1318; --card:#181d24; --text:#e8ecf1; --muted:#98a2b3; --line:#2a313b; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.45 -apple-system, "Segoe UI", Inter, sans-serif; background:var(--bg); color:var(--text); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); background:var(--card); display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+  header h1 { font-size:16px; margin:0; margin-right:auto; }
+  main { display:grid; grid-template-columns:minmax(380px,1fr) minmax(380px,1.2fr); gap:16px; padding:16px; align-items:start; }
+  @media (max-width:900px){ main { grid-template-columns:1fr; } }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; }
+  .card h2 { font-size:13px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 10px; }
+  input, select, textarea, button { font:inherit; color:inherit; }
+  input, select, textarea { width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:transparent; }
+  textarea { min-height:70px; font-family:Consolas, monospace; font-size:12px; }
+  button { padding:8px 14px; border:0; border-radius:8px; background:var(--accent); color:#fff; cursor:pointer; font-weight:600; }
+  button.sec { background:transparent; color:var(--accent); border:1px solid var(--accent); }
+  button:disabled { opacity:.5; cursor:wait; }
+  .row { display:flex; gap:8px; margin-bottom:8px; }
+  .row > * { flex:1; } .row > .fixed { flex:0 0 110px; }
+  .stage { display:flex; justify-content:center; padding:10px 0; }
+  .phone { background:#111; border-radius:46px; padding:12px; box-shadow:0 12px 40px rgba(0,0,0,.35); position:relative; }
+  .phone .screen { background:#fff; border-radius:34px; overflow:hidden; position:relative; }
+  .phone .notch { position:absolute; top:10px; left:50%; transform:translateX(-50%); width:34%; height:24px; background:#111; border-radius:14px; z-index:2; }
+  .phone.ipad { border-radius:28px; } .phone.ipad .screen { border-radius:18px; } .phone.ipad .notch { display:none; }
+  iframe, .screen img { display:block; border:0; width:100%; height:100%; transform-origin:top left; }
+  .screen img { object-fit:contain; background:#fff; }
+  pre { margin:0; padding:10px; background:var(--bg); border-radius:8px; overflow:auto; max-height:260px; font-size:12px; white-space:pre-wrap; word-break:break-word; }
+  .badge { display:inline-block; padding:2px 8px; border-radius:99px; font-weight:600; font-size:12px; background:var(--bg); }
+  .ok { color:var(--ok); } .bad { color:var(--bad); }
+  .tabs { display:flex; gap:6px; margin-bottom:8px; }
+  .muted { color:var(--muted); font-size:12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>📱 Simulador iOS para tus APIs</h1>
+  <span class="muted">Motor WebKit (Safari) · corre en tu PC</span>
+</header>
+
+<main>
+  <section class="card">
+    <h2>Vista del dispositivo</h2>
+    <div class="row">
+      <input id="pageUrl" placeholder="URL de tu Web App (https://script.google.com/macros/s/.../exec)">
+    </div>
+    <div class="row">
+      <select id="device"></select>
+      <button id="load" class="fixed">Cargar</button>
+      <button id="webkit" class="sec fixed">Probar en WebKit</button>
+    </div>
+    <div class="tabs">
+      <button class="sec" id="tabFrame">Vista rápida</button>
+      <button class="sec" id="tabShot">Captura WebKit real</button>
+    </div>
+    <div class="stage"><div class="phone" id="phone"><div class="notch"></div><div class="screen" id="screen"></div></div></div>
+    <div id="wkInfo" class="muted"></div>
+  </section>
+
+  <section>
+    <div class="card">
+      <h2>Probador de API</h2>
+      <div class="row">
+        <select id="method" class="fixed"><option>GET</option><option>POST</option><option>PUT</option><option>DELETE</option></select>
+        <input id="apiUrl" placeholder="https://script.google.com/macros/s/.../exec?accion=listar">
+      </div>
+      <textarea id="headers" placeholder='Headers (JSON), ej: {"Content-Type":"application/json"}'></textarea>
+      <div style="height:8px"></div>
+      <textarea id="body" placeholder="Body (JSON o texto)"></textarea>
+      <div style="height:8px"></div>
+      <div class="row">
+        <button id="sendServer">Enviar desde servidor</button>
+        <button id="sendBrowser" class="sec">Enviar desde navegador (CORS)</button>
+      </div>
+      <p class="muted">"Navegador" muestra si Safari/iOS bloquearía la llamada por CORS. "Servidor" ignora CORS.</p>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h2>Respuesta <span id="status" class="badge"></span> <span id="time" class="muted"></span></h2>
+      <pre id="out">Aún sin respuesta.</pre>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h2>Consola WebKit</h2>
+      <pre id="logs">Ejecuta "Probar en WebKit" para ver logs y errores de red.</pre>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const store = (k, v) => { try { v === undefined ? localStorage.getItem(k) : localStorage.setItem(k, v); } catch {} };
+const load = (k) => { try { return localStorage.getItem(k) || ''; } catch { return ''; } };
+let devices = [], shotSrc = '', mode = 'frame';
+
+const SIZES = { 'iPhone SE':[375,667], 'iPhone 13':[390,664], 'iPhone 14 Pro Max':[430,739], 'iPhone 15':[393,659], 'iPad Mini':[768,1024], 'iPad Pro 11':[834,1194] };
+
+async function init() {
+  devices = await (await fetch('/api/devices')).json();
+  $('device').innerHTML = devices.map(d => `<option>${d.name}</option>`).join('');
+  $('device').value = load('device') || 'iPhone 15';
+  ['pageUrl','apiUrl','headers','body'].forEach(id => $(id).value = load(id));
+  render();
+}
+
+function render() {
+  const name = $('device').value, [w, h] = SIZES[name] || [393, 659];
+  const scale = Math.min(1, 480 / w);
+  $('phone').classList.toggle('ipad', name.startsWith('iPad'));
+  const s = $('screen');
+  s.style.width = w * scale + 'px'; s.style.height = h * scale + 'px';
+  if (mode === 'shot' && shotSrc) {
+    s.innerHTML = `<img src="${shotSrc}" alt="Captura WebKit">`;
+  } else {
+    const url = $('pageUrl').value.trim();
+    s.innerHTML = url ? `<iframe src="${url}" style="width:${w}px;height:${h}px;transform:scale(${scale})"></iframe>`
+                      : `<div style="padding:60px 20px;color:#666;text-align:center">Escribe la URL de tu Web App y pulsa Cargar</div>`;
+  }
+}
+
+async function post(path, data) {
+  const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+
+function showResponse(status, ms, text) {
+  const ok = status >= 200 && status < 400;
+  $('status').textContent = status; $('status').className = 'badge ' + (ok ? 'ok' : 'bad');
+  $('time').textContent = ms + ' ms';
+  try { text = JSON.stringify(JSON.parse(text), null, 2); } catch {}
+  $('out').textContent = text;
+}
+
+function parseHeaders() {
+  const t = $('headers').value.trim();
+  if (!t) return {};
+  try { return JSON.parse(t); } catch { throw new Error('Los headers no son JSON válido'); }
+}
+
+$('sendServer').onclick = async () => {
+  const b = $('sendServer'); b.disabled = true;
+  try {
+    const r = await post('/api/proxy', { url: $('apiUrl').value.trim(), method: $('method').value, headers: parseHeaders(), body: $('body').value || undefined });
+    showResponse(r.status, r.ms, r.body);
+  } catch (e) { showResponse('ERR', 0, e.message); }
+  b.disabled = false;
+};
+
+$('sendBrowser').onclick = async () => {
+  const b = $('sendBrowser'); b.disabled = true; const t0 = performance.now();
+  try {
+    const m = $('method').value;
+    const r = await fetch($('apiUrl').value.trim(), { method: m, headers: parseHeaders(), body: ['GET','HEAD'].includes(m) ? undefined : ($('body').value || undefined) });
+    showResponse(r.status, Math.round(performance.now() - t0), await r.text());
+  } catch (e) { showResponse('BLOQUEADO', Math.round(performance.now() - t0), 'El navegador bloqueó la llamada (probable CORS o red): ' + e.message); }
+  b.disabled = false;
+};
+
+$('webkit').onclick = async () => {
+  const url = $('pageUrl').value.trim();
+  if (!url) return alert('Escribe primero la URL');
+  const b = $('webkit'); b.disabled = true; b.textContent = 'Abriendo…';
+  try {
+    const r = await post('/api/webkit', { url, device: $('device').value });
+    shotSrc = r.screenshot; mode = 'shot'; render();
+    $('wkInfo').textContent = `HTTP ${r.status} · ${r.ms} ms · "${r.title}" · ${r.viewport.width}×${r.viewport.height}`;
+    $('logs').textContent = [...r.logs, ...r.failed.map(f => '[red] ' + f)].join('\n') || 'Sin errores ni mensajes. ✅';
+  } catch (e) { $('logs').textContent = 'Error: ' + e.message; }
+  b.disabled = false; b.textContent = 'Probar en WebKit';
+};
+
+$('load').onclick = () => { mode = 'frame'; render(); };
+$('tabFrame').onclick = () => { mode = 'frame'; render(); };
+$('tabShot').onclick = () => { mode = 'shot'; render(); };
+$('device').onchange = () => { store('device', $('device').value); render(); };
+['pageUrl','apiUrl','headers','body'].forEach(id => $(id).addEventListener('input', () => store(id, $(id).value)));
+init();
+</script>
+</body>
+</html>
