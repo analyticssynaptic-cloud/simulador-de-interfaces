@@ -99,9 +99,36 @@ const load = (k) => { try { return localStorage.getItem(k) || ''; } catch { retu
 let devices = [], shotSrc = '', mode = 'frame';
 
 let SIZES = {};
+const STATIC_DEVICES = [
+  { group: 'iOS (Safari)', items: [
+    { name: 'iPhone SE', label: 'iPhone SE', engine: 'WebKit', width: 320, height: 568 },
+    { name: 'iPhone 15', label: 'iPhone 15', engine: 'WebKit', width: 393, height: 659 },
+    { name: 'iPhone 14 Pro Max', label: 'iPhone 14 Pro Max', engine: 'WebKit', width: 430, height: 740 },
+    { name: 'iPad Mini', label: 'iPad Mini', engine: 'WebKit', width: 768, height: 1024 },
+    { name: 'iPad Pro 11', label: 'iPad Pro 11', engine: 'WebKit', width: 834, height: 1194 } ] },
+  { group: 'Android (Chrome)', items: [
+    { name: 'Pixel 7', label: 'Pixel 7', engine: 'Chromium', width: 412, height: 839 },
+    { name: 'Galaxy S9+', label: 'Galaxy S9+', engine: 'Chromium', width: 320, height: 658 },
+    { name: 'Galaxy Tab S4', label: 'Galaxy Tab S4', engine: 'Chromium', width: 712, height: 1138 } ] },
+  { group: 'Escritorio', items: [
+    { name: 'Desktop Chrome', label: 'Windows/Linux · Chrome', engine: 'Chromium', width: 1280, height: 720 },
+    { name: 'Desktop Firefox', label: 'Firefox', engine: 'Firefox', width: 1280, height: 720 },
+    { name: 'Desktop Safari', label: 'macOS · Safari', engine: 'WebKit', width: 1280, height: 720 } ] },
+];
+let HAS_SERVER = true;
+
 
 async function init() {
-  devices = await (await fetch('/api/devices')).json();
+  try {
+    const r = await fetch('/api/devices');
+    if (!r.ok) throw new Error();
+    devices = await r.json();
+  } catch {
+    HAS_SERVER = false; devices = STATIC_DEVICES;
+    $('webkit').disabled = true; $('webkit').title = 'Disponible solo en el simulador local o en un servidor';
+    $('sendServer').disabled = true; $('sendServer').title = 'Disponible solo en el simulador local';
+    document.querySelector('header .muted').textContent = 'Modo web (GitHub Pages) · motores reales y envío por servidor: use la versión local';
+  }
   $('device').innerHTML = devices.map(g => `<optgroup label="${g.group}">` + g.items.map(d => { SIZES[d.name] = [d.width, d.height]; return `<option value="${d.name}">${d.label} (${d.engine})</option>`; }).join('') + '</optgroup>').join('');
   $('device').value = load('device') || 'iPhone 15';
   ['pageUrl','apiUrl','headers','body'].forEach(id => $(id).value = load(id));
