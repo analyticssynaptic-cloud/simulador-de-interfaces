@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Simulador iOS para APIs</title>
+<title>Simulador de Interfaces</title>
 <style>
   :root { --bg:#f2f4f7; --card:#fff; --text:#1b1f24; --muted:#667085; --line:#e4e7ec; --accent:#0a84ff; --ok:#1a7f37; --bad:#c62828; }
   @media (prefers-color-scheme: dark) {
@@ -41,8 +41,8 @@
 </head>
 <body>
 <header>
-  <h1>📱 Simulador iOS para tus APIs</h1>
-  <span class="muted">Motor WebKit (Safari) · corre en tu PC</span>
+  <h1>📱🖥️ Simulador de Interfaces y Sistemas</h1>
+  <span class="muted">iOS · Android · Windows · macOS · motores reales: WebKit, Chromium, Firefox</span>
 </header>
 
 <main>
@@ -54,11 +54,11 @@
     <div class="row">
       <select id="device"></select>
       <button id="load" class="fixed">Cargar</button>
-      <button id="webkit" class="sec fixed">Probar en WebKit</button>
+      <button id="webkit" class="sec fixed">Probar en motor real</button>
     </div>
     <div class="tabs">
       <button class="sec" id="tabFrame">Vista rápida</button>
-      <button class="sec" id="tabShot">Captura WebKit real</button>
+      <button class="sec" id="tabShot">Captura motor real</button>
     </div>
     <div class="stage"><div class="phone" id="phone"><div class="notch"></div><div class="screen" id="screen"></div></div></div>
     <div id="wkInfo" class="muted"></div>
@@ -86,8 +86,8 @@
       <pre id="out">Aún sin respuesta.</pre>
     </div>
     <div class="card" style="margin-top:16px">
-      <h2>Consola WebKit</h2>
-      <pre id="logs">Ejecuta "Probar en WebKit" para ver logs y errores de red.</pre>
+      <h2>Consola del motor real</h2>
+      <pre id="logs">Ejecuta "Probar en motor real" para ver logs y errores de red.</pre>
     </div>
   </section>
 </main>
@@ -98,11 +98,11 @@ const store = (k, v) => { try { v === undefined ? localStorage.getItem(k) : loca
 const load = (k) => { try { return localStorage.getItem(k) || ''; } catch { return ''; } };
 let devices = [], shotSrc = '', mode = 'frame';
 
-const SIZES = { 'iPhone SE':[375,667], 'iPhone 13':[390,664], 'iPhone 14 Pro Max':[430,739], 'iPhone 15':[393,659], 'iPad Mini':[768,1024], 'iPad Pro 11':[834,1194] };
+let SIZES = {};
 
 async function init() {
   devices = await (await fetch('/api/devices')).json();
-  $('device').innerHTML = devices.map(d => `<option>${d.name}</option>`).join('');
+  $('device').innerHTML = devices.map(g => `<optgroup label="${g.group}">` + g.items.map(d => { SIZES[d.name] = [d.width, d.height]; return `<option value="${d.name}">${d.label} (${d.engine})</option>`; }).join('') + '</optgroup>').join('');
   $('device').value = load('device') || 'iPhone 15';
   ['pageUrl','apiUrl','headers','body'].forEach(id => $(id).value = load(id));
   render();
@@ -110,8 +110,8 @@ async function init() {
 
 function render() {
   const name = $('device').value, [w, h] = SIZES[name] || [393, 659];
-  const scale = Math.min(1, 480 / w);
-  $('phone').classList.toggle('ipad', name.startsWith('iPad'));
+  const scale = Math.min(1, 480 / w, 640 / h);
+  $('phone').classList.toggle('ipad', (w >= 700));
   const s = $('screen');
   s.style.width = w * scale + 'px'; s.style.height = h * scale + 'px';
   if (mode === 'shot' && shotSrc) {
@@ -170,10 +170,10 @@ $('webkit').onclick = async () => {
   try {
     const r = await post('/api/webkit', { url, device: $('device').value });
     shotSrc = r.screenshot; mode = 'shot'; render();
-    $('wkInfo').textContent = `HTTP ${r.status} · ${r.ms} ms · "${r.title}" · ${r.viewport.width}×${r.viewport.height}`;
+    $('wkInfo').textContent = `${r.engine} · HTTP ${r.status} · ${r.ms} ms · "${r.title}" · ${r.viewport.width}×${r.viewport.height}`;
     $('logs').textContent = [...r.logs, ...r.failed.map(f => '[red] ' + f)].join('\n') || 'Sin errores ni mensajes. ✅';
   } catch (e) { $('logs').textContent = 'Error: ' + e.message; }
-  b.disabled = false; b.textContent = 'Probar en WebKit';
+  b.disabled = false; b.textContent = 'Probar en motor real';
 };
 
 $('load').onclick = () => { mode = 'frame'; render(); };

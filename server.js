@@ -1,13 +1,20 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const { webkit, devices } = require('playwright');
+const pw = require('playwright');
+const { devices } = pw;
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC = path.join(__dirname, 'public');
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css' };
 
-const DEVICES = ['iPhone SE', 'iPhone 13', 'iPhone 14 Pro Max', 'iPhone 15', 'iPad Mini', 'iPad Pro 11'];
+const GROUPS = {
+  'iOS (Safari)': ['iPhone SE', 'iPhone 15', 'iPhone 14 Pro Max', 'iPad Mini', 'iPad Pro 11'],
+  'Android (Chrome)': ['Pixel 7', 'Galaxy S9+', 'Galaxy Tab S4'],
+  'Escritorio': ['Desktop Chrome', 'Desktop Edge', 'Desktop Firefox', 'Desktop Safari'],
+};
+const LABELS = { 'Desktop Chrome': 'Windows/Linux · Chrome', 'Desktop Edge': 'Windows · Edge', 'Desktop Firefox': 'Firefox', 'Desktop Safari': 'macOS · Safari' };
+const ENGINE = { webkit: 'WebKit', chromium: 'Chromium', firefox: 'Firefox' };
 
 function readBody(req) {
   return new Promise((resolve) => {
@@ -38,11 +45,11 @@ async function proxy({ url, method = 'GET', headers = {}, body }) {
   };
 }
 
-// Abre la URL en WebKit (motor de Safari) con el perfil del dispositivo elegido
+// Abre la URL con el motor real del dispositivo elegido (WebKit, Chromium o Firefox)
 async function webkitTest({ url, device = 'iPhone 15' }) {
   const profile = devices[device];
   if (!profile) throw new Error('Dispositivo desconocido: ' + device);
-  const browser = await webkit.launch();
+  const browser = await pw[profile.defaultBrowserType].launch();
   try {
     const ctx = await browser.newContext({ ...profile });
     const page = await ctx.newPage();
@@ -60,6 +67,7 @@ async function webkitTest({ url, device = 'iPhone 15' }) {
       ms,
       title: await page.title(),
       userAgent: profile.userAgent,
+      engine: ENGINE[profile.defaultBrowserType],
       viewport: profile.viewport,
       logs,
       failed,
@@ -73,7 +81,7 @@ async function webkitTest({ url, device = 'iPhone 15' }) {
 http
   .createServer(async (req, res) => {
     try {
-      if (req.url === '/api/devices') return send(res, 200, DEVICES.map((n) => ({ name: n, ...devices[n]?.viewport })));
+      if (req.url === '/api/devices') return send(res, 200, Object.entries(GROUPS).map(([group, list]) => ({ group, items: list.map((n) => ({ name: n, label: LABELS[n] || n, engine: ENGINE[devices[n].defaultBrowserType], ...devices[n].viewport })) })));
       if (req.url === '/api/proxy' && req.method === 'POST') return send(res, 200, await proxy(await readBody(req)));
       if (req.url === '/api/webkit' && req.method === 'POST') return send(res, 200, await webkitTest(await readBody(req)));
 

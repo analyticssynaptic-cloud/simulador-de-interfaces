@@ -1,5 +1,5 @@
 {
-  "name": "ios-api-simulator",
+  "name": "simulador-de-interfaces",
   "version": "1.0.0",
   "private": true,
   "scripts": { "start": "node server.js" },

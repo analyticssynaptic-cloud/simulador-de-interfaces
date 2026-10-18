@@ -1,4 +1,4 @@
-name: Prueba en iOS (WebKit)
+name: Prueba multiplataforma
 on: [push, workflow_dispatch]
 jobs:
   webkit-iphone:
@@ -8,7 +8,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - run: npm ci
-      - run: npx playwright install webkit
+      - run: npx playwright install webkit chromium firefox
       - name: Iniciar simulador y probar perfil iPhone
         run: |
           node server.js & sleep 3
